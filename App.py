@@ -9,9 +9,8 @@ from pydub import AudioSegment
 # Page Configuration
 st.set_page_config(page_title="Urdu History Narrator", page_icon="📜")
 
-# 1. فنکشن: پرانی فائلیں ڈیلیٹ کرنے کے لیے
+# پرانی فائلیں ڈیلیٹ کرنے کا فنکشن
 def cleanup_old_files():
-    # تمام عارضی فائلیں اور فائنل آڈیو فائلیں ڈھونڈ کر ڈیلیٹ کرنا
     files = glob.glob("*.mp3") + glob.glob("temp/*.mp3")
     for f in files:
         try:
@@ -19,12 +18,11 @@ def cleanup_old_files():
         except:
             pass
 
-# ایپ اسٹارٹ ہوتے ہی صفائی کرنا
 if "cleaned" not in st.session_state:
     cleanup_old_files()
     st.session_state.cleaned = True
 
-# CSS for RTL and Styling
+# وہی پرانا CSS ڈیزائن
 st.markdown("""
     <style>
     .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
@@ -45,7 +43,7 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
     progress_bar = st.progress(0)
     total_lines = len(lines)
 
-    # بچے کے لیے پچ ایڈجسٹمنٹ
+    # پچ ایڈجسٹمنٹ
     final_pitch = base_pitch + 15 if is_kid else base_pitch
 
     for i, line in enumerate(lines):
@@ -73,16 +71,16 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         
         progress_bar.progress((i + 1) / total_lines)
 
-    # ہر یوزر کے لیے منفرد نام تاکہ اوور لیپ نہ ہو
     final_output = f"narrator_{os.urandom(4).hex()}.mp3"
     combined_audio.export(final_output, format="mp3")
     return final_output
 
-# --- UI ---
+# --- UI (وہی پرانا ٹاپ ٹیکسٹ جو آپ کو پسند تھا) ---
 st.title("📜 Professional Urdu History Narrator")
 st.subheader("پروفیشنل اردو ہسٹری نیریٹر")
 
 st.write("Paste your script below. The app will remove instructions and add pauses automatically.")
+st.write("اپنا اسکرپٹ یہاں پیسٹ کریں۔ ایپ خود بخود ہدایات صاف کر کے وقفے شامل کر دے گی۔")
 
 user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 
@@ -90,6 +88,7 @@ user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 st.sidebar.header("Settings / سیٹنگز")
 voice_map = {
     "Asad (Man/مرد)": "ur-PK-AsadNeural",
+    "Usman (Deep/جاندار)": "ur-PK-ImranNeural", # عثمان کی جاندار آواز
     "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural",
     "Child (Kid/بچہ)": "ur-PK-UzmaNeural"
 }
@@ -103,7 +102,6 @@ pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 20, -
 
 if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
-        # نیا جنریشن شروع کرنے سے پہلے پرانی فائلیں صاف کرنا
         cleanup_old_files()
         with st.spinner("Processing... / آڈیو تیار ہو رہی ہے"):
             try:
