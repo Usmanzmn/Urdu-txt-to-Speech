@@ -1,61 +1,82 @@
 import streamlit as st
+import asyncio
+import edge_tts
+import os
+import re
 import requests
-import time
+from pydub import AudioSegment
 
-# --- سیٹنگز ---
-# اپنا ٹوکن یہاں لکھیں
-HF_TOKEN = "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"
-API_URL = "https://api-inference.huggingface.co/models/coqui/XTTS-v2"
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+# پیج سیٹنگز
+st.set_page_config(page_title="Urdu TTS & Clone", page_icon="🎤", layout="wide")
 
-st.set_page_config(page_title="Urdu Voice Cloner", page_icon="🎤")
+# --- CSS for RTL ---
+st.markdown("""
+    <style>
+    .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
+    textarea { direction: rtl !important; text-align: right !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- UI ---
-st.title("🎤 مفت اردو وائس کلوننگ (Hugging Face)")
-st.info("نوٹ: پہلی بار ماڈل لوڈ ہونے میں 2 سے 5 منٹ لگ سکتے ہیں۔")
+# --- Functions ---
+async def generate_asad_audio(full_script, base_speed, base_pitch):
+    lines = full_script.split('\n')
+    combined_audio = AudioSegment.empty()
+    if not os.path.exists("temp"): os.makedirs("temp")
+    
+    for i, line in enumerate(lines):
+        if not line.strip(): continue
+        pause_match = re.search(r"\[Pause:\s*(\d+)s\]", line)
+        clean_text = re.sub(r"\(.*?\)", "", line)
+        clean_text = re.sub(r"\[.*?\]", "", clean_text).strip()
+        
+        if clean_text:
+            temp_file = f"temp/part_{i}.mp3"
+            rate_str = f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%"
+            pitch_str = f"{'+' if base_pitch >= 0 else ''}{base_pitch}Hz"
+            communicate = edge_tts.Communicate(clean_text, "ur-PK-AsadNeural", rate=rate_str, pitch=pitch_str)
+            await communicate.save(temp_file)
+            combined_audio += AudioSegment.from_mp3(temp_file)
+            os.remove(temp_file)
 
-# آواز اپ لوڈ کریں
-uploaded_file = st.file_uploader("اپنی آواز کا نمونہ (WAV/MP3) اپ لوڈ کریں", type=["wav", "mp3"])
-
-# متن لکھیں
-text_input = st.text_area("اردو اسکرپٹ یہاں لکھیں:", placeholder="مثال: برلن کی دیوار ایک عظیم تاریخ رکھتی ہے۔", height=150)
-
-if st.button("کلون آواز تیار کریں"):
-    if not uploaded_file or not text_input:
-        st.error("براہ کرم آواز اور متن دونوں فراہم کریں۔")
-    else:
-        with st.spinner("سرور آواز تیار کر رہا ہے..."):
-            # آڈیو فائل کو ریڈ کریں
-            audio_data = uploaded_file.read()
+        if pause_match:
+            seconds = int(pause_match.group(1))
+            combined_audio += AudioSegment.silent(duration=seconds * 1000)
             
-            # Hugging Face API کو ڈیٹا بھیجنا
-            payload = {
-                "inputs": text_input,
-                "parameters": {"src_audio": audio_data.hex()} 
-            }
+    final_output = "history_voice.mp3"
+    combined_audio.export(final_output, format="mp3")
+    return final_output
 
-            try:
-                response = requests.post(API_URL, headers=headers, json=payload)
-                
-                # --- یہاں غلطی تھی، اب یہ ٹھیک ہے ---
-                if response.status_code == 503:
-                    st.warning("ماڈل ابھی سرور پر لوڈ ہو رہا ہے، براہ کرم 30 سیکنڈ بعد دوبارہ کوشش کریں۔")
-                
-                elif response.status_code == 200:
-                    st.success("آواز تیار ہے!")
-                    st.audio(response.content, format="audio/wav")
-                    st.download_button("ڈاؤن لوڈ کریں", response.content, "cloned_voice.wav")
-                
-                else:
-                    st.error(f"سرور کا جواب (Error {response.status_code}): {response.text}")
-                    
-            except Exception as e:
-                st.error(f"رابطے میں غلطی: {e}")
+# --- Main UI ---
+st.title("🎤 اردو وائس ماسٹر")
 
-# --- ہدایات ---
-with st.expander("اگر آواز جنریٹ نہ ہو تو کیا کریں؟"):
-    st.write("""
-    1. **Error 503:** اس کا مطلب ہے کہ Hugging Face کا سرور ابھی سویا ہوا ہے، وہ ماڈل لوڈ کر رہا ہے۔ 1 منٹ بعد دوبارہ بٹن دبائیں۔
-    2. **Error 4xx:** اس کا مطلب ہے کہ ٹوکن یا ماڈل کے لنک میں مسئلہ ہے۔
-    3. **بہترین مشورہ:** اگر یہ یہاں کام نہ کرے، تو Hugging Face پر اپنی 'Space' بنائیں، وہاں یہ 100% چلے گا۔
-    """)
+tab1, tab2 = st.tabs(["📜 ہسٹری نیریٹر (Asad Voice)", "👥 وائس کلوننگ (AI Clone)"])
+
+# --- Tab 1: Original History Narrator ---
+with tab1:
+    st.header("پروفیشنل ہسٹری نیریٹر")
+    st.info("یہ حصہ آپ کے اسکرپٹ سے بریکٹس نکال کر وقفے (Pauses) شامل کرے گا۔")
+    
+    user_script = st.text_area("اردو اسکرپٹ یہاں لکھیں:", height=250, key="txt1")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        speed = st.slider("رفتار", 0.5, 1.5, 0.9)
+    with col2:
+        pitch = st.slider("آواز کی گہرائی", -20, 10, -7)
+        
+    if st.button("وائس اوور تیار کریں"):
+        if user_script:
+            with st.spinner("آڈیو تیار ہو رہی ہے..."):
+                final_path = asyncio.run(generate_asad_audio(user_script, speed, pitch))
+                st.audio(final_path)
+                with open(final_path, "rb") as f:
+                    st.download_button("ڈاؤن لوڈ کریں", f, "History_Voice.mp3")
+        else:
+            st.error("اسکرپٹ لکھیں!")
+
+# --- Tab 2: Voice Cloning ---
+with tab2:
+    st.header("آواز کلوننگ (Hugging Face)")
+    st.warning("اس کے لیے نیا ٹوکن استعمال کریں۔")
+    
+    # اپنا نیا ٹوکن یہاں
