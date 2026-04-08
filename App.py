@@ -29,17 +29,16 @@ if st.button("کلون آواز تیار کریں"):
             audio_data = uploaded_file.read()
             
             # Hugging Face API کو ڈیٹا بھیجنا
-            # XTTS v2 عام طور پر JSON میں ٹیکسٹ اور فائل مانگتا ہے
             payload = {
                 "inputs": text_input,
-                "parameters": {"src_audio": audio_data.hex()} # یہ ماڈل کے حساب سے بدل سکتا ہے
+                "parameters": {"src_audio": audio_data.hex()} 
             }
 
             try:
                 response = requests.post(API_URL, headers=headers, json=payload)
                 
-                # اگر ماڈل ابھی لوڈ ہو رہا ہو (503 Error)
-                if response.status_status == 503:
+                # --- یہاں غلطی تھی، اب یہ ٹھیک ہے ---
+                if response.status_code == 503:
                     st.warning("ماڈل ابھی سرور پر لوڈ ہو رہا ہے، براہ کرم 30 سیکنڈ بعد دوبارہ کوشش کریں۔")
                 
                 elif response.status_code == 200:
@@ -48,15 +47,15 @@ if st.button("کلون آواز تیار کریں"):
                     st.download_button("ڈاؤن لوڈ کریں", response.content, "cloned_voice.wav")
                 
                 else:
-                    st.error(f"سرور نے جواب نہیں دیا: {response.text}")
+                    st.error(f"سرور کا جواب (Error {response.status_code}): {response.text}")
                     
             except Exception as e:
                 st.error(f"رابطے میں غلطی: {e}")
 
 # --- ہدایات ---
-with st.expander("یہ کام کیسے کرتا ہے؟"):
+with st.expander("اگر آواز جنریٹ نہ ہو تو کیا کریں؟"):
     st.write("""
-    1. یہ ایپ آپ کا ڈیٹا Hugging Face کے سرور پر بھیجتی ہے۔
-    2. وہاں 'XTTS-v2' نامی ماڈل آپ کی آواز کا تجزیہ کرتا ہے۔
-    3. اگر آپ کو 'Model Loading' کا میسج ملے تو پریشان نہ ہوں، سرور کو گرم ہونے میں وقت لگتا ہے۔
+    1. **Error 503:** اس کا مطلب ہے کہ Hugging Face کا سرور ابھی سویا ہوا ہے، وہ ماڈل لوڈ کر رہا ہے۔ 1 منٹ بعد دوبارہ بٹن دبائیں۔
+    2. **Error 4xx:** اس کا مطلب ہے کہ ٹوکن یا ماڈل کے لنک میں مسئلہ ہے۔
+    3. **بہترین مشورہ:** اگر یہ یہاں کام نہ کرے، تو Hugging Face پر اپنی 'Space' بنائیں، وہاں یہ 100% چلے گا۔
     """)
