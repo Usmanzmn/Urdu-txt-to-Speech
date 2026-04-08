@@ -8,7 +8,7 @@ from pydub import AudioSegment
 # Page Configuration
 st.set_page_config(page_title="Urdu History Narrator", page_icon="📜")
 
-# وہی پرانا ڈیزائن (CSS)
+# CSS for RTL and Styling
 st.markdown("""
     <style>
     .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
@@ -16,12 +16,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# میموری (Session State) تاکہ ڈاؤن لوڈ بٹن سے آڈیو غائب نہ ہو
 if "audio_path" not in st.session_state:
     st.session_state.audio_path = None
 
-# آڈیو جنریشن کا فنکشن
-async def generate_history_audio(full_script, base_speed, base_pitch, voice_choice):
+async def generate_history_audio(full_script, base_speed, base_pitch, voice_choice, is_kid):
     lines = full_script.split('\n')
     combined_audio = AudioSegment.empty()
     
@@ -30,6 +28,9 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
 
     progress_bar = st.progress(0)
     total_lines = len(lines)
+
+    # اگر بچہ منتخب ہے، تو پچ کو مزید باریک (+15Hz) کر دیں تاکہ آواز چھوٹی لگے
+    final_pitch = base_pitch + 15 if is_kid else base_pitch
 
     for i, line in enumerate(lines):
         if not line.strip(): continue
@@ -41,7 +42,7 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         if clean_text:
             temp_file = f"temp/part_{i}.mp3"
             rate_str = f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%"
-            pitch_str = f"{'+' if base_pitch >= 0 else ''}{base_pitch}Hz"
+            pitch_str = f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"
             
             communicate = edge_tts.Communicate(clean_text, voice_choice, rate=rate_str, pitch=pitch_str)
             await communicate.save(temp_file)
@@ -60,42 +61,41 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
     combined_audio.export(final_output, format="mp3")
     return final_output
 
-# --- UI (وہی پرانا ٹاپ ٹیکسٹ) ---
+# --- UI ---
 st.title("📜 Professional Urdu History Narrator")
 st.subheader("پروفیشنل اردو ہسٹری نیریٹر")
 
 st.write("Paste your script below. The app will remove instructions and add pauses automatically.")
 st.write("اپنا اسکرپٹ یہاں پیسٹ کریں۔ ایپ خود بخود ہدایات صاف کر کے وقفے شامل کر دے گی۔")
 
-# ان پٹ باکس
 user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 
-# سائیڈ بار
+# Sidebar Settings
 st.sidebar.header("Settings / سیٹنگز")
 voice_map = {
     "Asad (Man/مرد)": "ur-PK-AsadNeural",
     "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural",
-    "Child (Kid/بچہ)": "ur-IN-GulNeural"
+    "Child (Kid/بچہ)": "ur-PK-UzmaNeural" # ہم Uzma کی آواز استعمال کریں گے لیکن پچ بڑھا کر
 }
 selected_voice_label = st.sidebar.selectbox("Select Narrator / آواز منتخب کریں", list(voice_map.keys()))
 selected_voice_code = voice_map[selected_voice_label]
 
-speed = st.sidebar.slider("Speech Rate / بولنے کی رفتار", 0.7, 1.3, 0.9, 0.1)
-pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 10, -8, 1)
+is_kid = True if "Child" in selected_voice_label else False
 
-# بٹن
+speed = st.sidebar.slider("Speech Rate / بولنے کی رفتار", 0.7, 1.3, 0.9, 0.1)
+pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 20, -8, 1)
+
 if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
         with st.spinner("Processing... / آڈیو تیار ہو رہی ہے"):
             try:
-                st.session_state.audio_path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_voice_code))
+                st.session_state.audio_path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_voice_code, is_kid))
                 st.success("Ready! / تیار ہے")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
         st.error("Enter Script!")
 
-# آڈیو پلیئر اور ڈاؤن لوڈ بٹن (جو اب غائب نہیں ہوگا)
 if st.session_state.audio_path and os.path.exists(st.session_state.audio_path):
     st.markdown("---")
     st.audio(st.session_state.audio_path)
