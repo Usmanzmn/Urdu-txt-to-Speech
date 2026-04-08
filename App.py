@@ -8,16 +8,18 @@ from pydub import AudioSegment
 # Page Configuration
 st.set_page_config(page_title="Urdu Voice Studio", page_icon="🎤")
 
-# Combined English and Urdu CSS for RTL support
+# Custom CSS
 st.markdown("""
     <style>
     .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
     textarea { direction: rtl !important; text-align: right !important; font-size: 18px !important; }
-    .stTitle { text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-# Function to generate audio
+# Initialize Session State for audio
+if "audio_path" not in st.session_state:
+    st.session_state.audio_path = None
+
 async def generate_history_audio(full_script, base_speed, base_pitch, voice_choice):
     lines = full_script.split('\n')
     combined_audio = AudioSegment.empty()
@@ -32,10 +34,7 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         if not line.strip():
             continue
         
-        # Search for pauses like [Pause: 3s]
         pause_match = re.search(r"\[Pause:\s*(\d+)s\]", line)
-        
-        # Clean the text from brackets and instructions
         clean_text = re.sub(r"\(.*?\)", "", line)
         clean_text = re.sub(r"\[.*?\]", "", clean_text).strip()
         
@@ -62,43 +61,36 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
     combined_audio.export(final_output, format="mp3")
     return final_output
 
-# --- UI Layout ---
-st.title("📜 Professional Urdu Voice Studio")
-st.subheader("پروفیشنل اردو آواز اسٹوڈیو")
+# --- UI ---
+st.title("📜 Urdu Voice Studio with Memory")
 
-# Main Input
-user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", 
-                         placeholder="مثال: (سنجیدہ آواز) برلن کی دیوار... [Pause: 3s]", 
-                         height=300)
-
-# Sidebar Settings
-st.sidebar.header("Voice Settings / آواز کی ترتیبات")
-
-# Voice Selection Dropdown
+# Sidebar
+st.sidebar.header("Voice Settings")
 voice_map = {
     "Asad (Man/مرد)": "ur-PK-AsadNeural",
     "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural",
-    "Child (Kid/بچہ)": "ur-IN-GulNeural" # Note: Gul is a softer, high-pitched voice often used for kids/teens
+    "Child (Kid/بچہ)": "ur-IN-GulNeural"
 }
-selected_voice_label = st.sidebar.selectbox("Select Narrator / آواز منتخب کریں", list(voice_map.keys()))
+selected_voice_label = st.sidebar.selectbox("Select Narrator", list(voice_map.keys()))
 selected_voice_code = voice_map[selected_voice_label]
+speed = st.sidebar.slider("Speech Rate", 0.7, 1.3, 0.9, 0.1)
+pitch = st.sidebar.slider("Voice Pitch", -20, 10, -5, 1)
 
-speed = st.sidebar.slider("Speech Rate / بولنے کی رفتار", 0.7, 1.3, 0.9, 0.1)
-pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 10, -5, 1)
+# Input
+user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 
-if st.button("Generate Voiceover / وائس اوور تیار کریں"):
+if st.button("Generate Voiceover"):
     if user_input.strip():
-        with st.spinner("Processing Audio... / آڈیو تیار ہو رہی ہے"):
+        with st.spinner("Processing..."):
             try:
-                final_path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_voice_code))
-                st.success("Voiceover Ready! / وائس اوور تیار ہے")
-                st.audio(final_path)
-                with open(final_path, "rb") as f:
-                    st.download_button("Download MP3 / ڈاؤن لوڈ کریں", f, file_name="Urdu_Narrator.mp3")
+                # Save path to session state
+                st.session_state.audio_path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_voice_code))
+                st.success("Generated Successfully!")
             except Exception as e:
-                st.error(f"Error / غلطی: {e}")
+                st.error(f"Error: {e}")
     else:
-        st.error("Please enter a script! / پہلے اسکرپٹ درج کریں")
+        st.error("Please enter a script!")
+
 # Check if audio exists in memory and display it
 if st.session_state.audio_path and os.path.exists(st.session_state.audio_path):
     st.markdown("---")
