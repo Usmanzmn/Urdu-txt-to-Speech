@@ -51,16 +51,24 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
             rate_str = f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%"
             pitch_str = f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"
             
-            try:
-                communicate = edge_tts.Communicate(clean_text, voice_choice, rate=rate_str, pitch=pitch_str)
-                await communicate.save(temp_file)
-                
-                if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
-                    segment = AudioSegment.from_mp3(temp_file)
-                    combined_audio += segment
-                    os.remove(temp_file)
-            except:
-                continue 
+            # ٹرائی اینڈ ایرر لاجک: اگر عمران فیل ہو تو احمد (مردانہ) پر جائے
+            voices_to_try = [voice_choice, "ur-IN-AhmadNeural"] 
+            
+            success = False
+            for v in voices_to_try:
+                try:
+                    communicate = edge_tts.Communicate(clean_text, v, rate=rate_str, pitch=pitch_str)
+                    await communicate.save(temp_file)
+                    if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
+                        success = True
+                        break
+                except:
+                    continue
+            
+            if success:
+                segment = AudioSegment.from_mp3(temp_file)
+                combined_audio += segment
+                os.remove(temp_file)
 
         if pause_match:
             seconds = int(pause_match.group(1))
@@ -86,29 +94,29 @@ user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 # Sidebar
 st.sidebar.header("Settings / سیٹنگز")
 voice_map = {
-    "Asad (Man/مرد)": "ur-PK-AsadNeural",
-    "Salman (Narrator/نیریٹر)": "ur-IN-GulNeural", # نئی آواز جو زیادہ مستحکم ہے
-    "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural",
-    "Child (Kid/بچہ)": "ur-PK-UzmaNeural"
+    "Asad (Classic/معیاری)": "ur-PK-AsadNeural",
+    "Usman (Deep Male/بھاری مردانہ)": "ur-PK-ImranNeural", # جاندار آواز
+    "Madni (Clear Male/صاف مردانہ)": "ur-IN-AhmadNeural", # دوسری مردانہ آواز
+    "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural"
 }
 selected_label = st.sidebar.selectbox("Select Narrator / آواز منتخب کریں", list(voice_map.keys()))
 selected_code = voice_map[selected_label]
 
-is_kid = "Child" in selected_label
+is_kid = False # بچہ والا آپشن فی الحال ہٹا دیا تاکہ مردانہ آوازیں ڈسٹرب نہ ہوں
 speed = st.sidebar.slider("Speech Rate / بولنے کی رفتار", 0.7, 1.3, 0.9, 0.1)
 pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 20, -8, 1)
 
 if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
         cleanup_old_files()
-        with st.spinner("Processing Salman's Voice..."):
+        with st.spinner("Processing Male Voice... / مردانہ آواز تیار ہو رہی ہے"):
             try:
                 path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_code, is_kid))
                 if path:
                     st.session_state.audio_path = path
                     st.success("Ready! / تیار ہے")
                 else:
-                    st.error("Error generating audio. Try shorter text.")
+                    st.error("Error generating audio.")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
