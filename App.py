@@ -4,9 +4,10 @@ import edge_tts
 import os
 import re
 import glob
+import random
 from pydub import AudioSegment
 
-# Page Configuration
+# 1. Page Configuration
 st.set_page_config(page_title="Professional Urdu History Narrator", page_icon="📜")
 
 def cleanup_old_files():
@@ -32,6 +33,7 @@ if "audio_path" not in st.session_state:
     st.session_state.audio_path = None
 
 async def generate_history_audio(full_script, base_speed, base_pitch, voice_choice, is_kid):
+    # اسکرپٹ کو صاف کرنا اور خالی لائنیں نکالنا
     lines = [l.strip() for l in full_script.split('\n') if l.strip()]
     combined_audio = AudioSegment.empty()
     
@@ -39,9 +41,6 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         os.makedirs("temp")
 
     progress_bar = st.progress(0)
-    
-    # Usman کی آواز کے لیے پچ کو محفوظ حد میں رکھنا
-    is_usman = "Imran" in voice_choice
     final_pitch = base_pitch + 15 if is_kid else base_pitch
 
     for i, line in enumerate(lines):
@@ -50,31 +49,38 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         clean_text = re.sub(r"\[.*?\]", "", clean_text).strip()
         
         if clean_text:
-            temp_file = f"temp/part_{i}.mp3"
+            temp_file = f"temp/part_{random.randint(1000, 9999)}_{i}.mp3"
             
-            # ری ٹرائی لاجک: پہلے آپ کی سیٹنگز، پھر ڈیفالٹ
-            settings_to_try = [
-                {"rate": f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%", "pitch": f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"},
-                {"rate": "+0%", "pitch": "+0Hz"} # اگر فیل ہو تو ڈیفالٹ پر جائے گا
+            # ری ٹرائی کے مختلف طریقے (Usman Voice کے لیے خاص)
+            attempts = [
+                {"r": f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%", "p": f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"},
+                {"r": "+0%", "p": "+0Hz"}, # ڈیفالٹ پچ
+                {"r": "-5%", "p": "-2Hz"}  # تھوڑی تبدیلی کے ساتھ
             ]
             
             success = False
-            for setting in settings_to_try:
+            for attempt in attempts:
                 try:
-                    communicate = edge_tts.Communicate(clean_text, voice_choice, rate=setting["rate"], pitch=setting["pitch"])
+                    # Communicate کے اندر براہ راست پیرامیٹرز
+                    communicate = edge_tts.Communicate(
+                        text=clean_text, 
+                        voice=voice_choice, 
+                        rate=attempt["r"], 
+                        pitch=attempt["p"]
+                    )
                     await communicate.save(temp_file)
                     
-                    if os.path.exists(temp_file) and os.path.getsize(temp_file) > 500: # 500 bytes سے بڑی فائل ہونی چاہیے
+                    if os.path.exists(temp_file) and os.path.getsize(temp_file) > 100:
                         segment = AudioSegment.from_mp3(temp_file)
                         combined_audio += segment
                         os.remove(temp_file)
                         success = True
                         break
-                except:
+                except Exception:
                     continue
             
             if not success:
-                st.warning(f"لائن {i+1} پر آڈیو نہیں بن سکی۔")
+                st.warning(f"لائن {i+1} کو سرور نے مسترد کر دیا۔")
 
         if pause_match:
             seconds = int(pause_match.group(1))
@@ -91,9 +97,6 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
 # --- UI ---
 st.title("📜 Professional Urdu History Narrator")
 st.subheader("پروفیشنل اردو ہسٹری نیریٹر")
-
-st.write("Paste your script below. The app will remove instructions and add pauses automatically.")
-st.write("اپنا اسکرپٹ یہاں پیسٹ کریں۔ ایپ خود بخود ہدایات صاف کر کے وقفے شامل کر دے گی۔")
 
 user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 
@@ -115,14 +118,14 @@ pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 20, -
 if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
         cleanup_old_files()
-        with st.spinner("Processing..."):
+        with st.spinner("Connecting to Secure Server..."):
             try:
                 path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_code, is_kid))
                 if path:
                     st.session_state.audio_path = path
                     st.success("Ready! / تیار ہے")
                 else:
-                    st.error("Fatal Error: Server rejected all attempts.")
+                    st.error("Error: All server attempts failed. Please try a shorter script or refresh.")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
