@@ -99,3 +99,15 @@ if st.button("Generate Voiceover / وائس اوور تیار کریں"):
                 st.error(f"Error / غلطی: {e}")
     else:
         st.error("Please enter a script! / پہلے اسکرپٹ درج کریں")
+# Check if audio exists in memory and display it
+if st.session_state.audio_path and os.path.exists(st.session_state.audio_path):
+    st.markdown("---")
+    st.audio(st.session_state.audio_path)
+    
+    with open(st.session_state.audio_path, "rb") as f:
+        st.download_button(
+            label="Download MP3",
+            data=f,
+            file_name="Urdu_Narrator.mp3",
+            mime="audio/mp3"
+        )
