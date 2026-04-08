@@ -1,56 +1,56 @@
 import streamlit as st
-from gtts import gTTS
+import asyncio
+import edge_tts
 import os
 
 # Page configuration
-st.set_page_config(page_title="Urdu Text to Audio", page_icon="🎤")
+st.set_page_config(page_title="Urdu History Narrator", page_icon="📜")
 
-# Custom CSS for Urdu (Right-to-Left alignment)
+# Custom CSS for Urdu RTL
 st.markdown("""
     <style>
-    .urdu-text {
-        direction: rtl;
-        text-align: right;
-        font-family: 'Urdu Typesetting', 'Tahoma', sans-serif;
-        font-size: 20px;
-    }
-    textarea {
-        direction: rtl !important;
-    }
+    .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
+    textarea { direction: rtl !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎤 Urdu Text-to-Audio Converter")
-st.write("Enter Urdu text below to convert it into speech.")
+st.title("📜 Urdu Story & History Narrator")
+st.write("Convert your scripts into a deep male narrator voice.")
 
-# Text input with RTL support
-user_text = st.text_area("اردو عبارت یہاں لکھیں:", placeholder="مثال کے طور پر: آپ کیسے ہیں؟", height=200)
+# Sidebar for Voice Tuning
+st.sidebar.header("Voice Settings")
+speed = st.sidebar.slider("Talking Speed", 0.5, 1.5, 1.0, 0.1)
+pitch = st.sidebar.slider("Voice Pitch (Lower = Older)", -20, 20, -5, 1)
 
-if st.button("Convert to Audio"):
+# Text input
+user_text = st.text_area("اردو اسکرپٹ یہاں لکھیں:", placeholder="ایک دفعہ کا ذکر ہے کہ...", height=250)
+
+# Function to handle the async edge-tts logic
+async def generate_audio(text, speed_val, pitch_val):
+    # Format speed and pitch for edge-tts (e.g., "+10%", "-5Hz")
+    rate_str = f"{'+' if speed_val >= 1 else ''}{int((speed_val-1)*100)}%"
+    pitch_str = f"{'+' if pitch_val >= 0 else ''}{pitch_val}Hz"
+    
+    # ur-PK-AsadNeural is the best Male Urdu voice available
+    communicate = edge_tts.Communicate(text, "ur-PK-AsadNeural", rate=rate_str, pitch=pitch_str)
+    await communicate.save("output.mp3")
+
+if st.button("Generate Narrator Voice"):
     if user_text.strip() == "":
-        st.warning("Please enter some text first!")
+        st.warning("Please enter your script first!")
     else:
-        with st.spinner("Generating audio..."):
+        with st.spinner("The narrator is preparing..."):
             try:
-                # Convert text to speech using gTTS
-                tts = gTTS(text=user_text, lang='ur')
-                filename = "output.mp3"
-                tts.save(filename)
-
-                # Play audio in the app
-                audio_file = open(filename, 'rb')
-                audio_bytes = audio_file.read()
-                st.audio(audio_bytes, format='audio/mp3')
+                # Run the async function
+                asyncio.run(generate_audio(user_text, speed, pitch))
                 
-                # Provide download button
-                st.download_button(
-                    label="Download MP3",
-                    data=audio_bytes,
-                    file_name="urdu_speech.mp3",
-                    mime="audio/mp3"
-                )
+                # Display audio player
+                with open("output.mp3", "rb") as f:
+                    st.audio(f.read(), format="audio/mp3")
                 
-                audio_file.close()
-                os.remove(filename) # Clean up the file
+                # Download button
+                with open("output.mp3", "rb") as f:
+                    st.download_button("Download Audio", f, "narrator_voice.mp3")
+                
             except Exception as e:
                 st.error(f"Error: {e}")
