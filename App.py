@@ -6,10 +6,9 @@ import re
 import glob
 from pydub import AudioSegment
 
-# 1. Page Configuration (ٹیب کا نام اور آئیکن)
+# Page Configuration
 st.set_page_config(page_title="Professional Urdu History Narrator", page_icon="📜")
 
-# پرانی فائلیں ڈیلیٹ کرنے کا فنکشن تاکہ ایپ پر بوجھ نہ پڑے
 def cleanup_old_files():
     files = glob.glob("*.mp3") + glob.glob("temp/*.mp3")
     for f in files:
@@ -18,12 +17,10 @@ def cleanup_old_files():
         except:
             pass
 
-# ایپ لوڈ ہوتے ہی صفائی
 if "cleaned" not in st.session_state:
     cleanup_old_files()
     st.session_state.cleaned = True
 
-# وہی پرانا ڈیزائن اور RTL سپورٹ
 st.markdown("""
     <style>
     .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
@@ -31,7 +28,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# میموری سیٹنگ تاکہ ڈاؤن لوڈ پر آڈیو غائب نہ ہو
 if "audio_path" not in st.session_state:
     st.session_state.audio_path = None
 
@@ -43,8 +39,6 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         os.makedirs("temp")
 
     progress_bar = st.progress(0)
-    
-    # اگر بچہ منتخب ہو تو پچ کو خودکار طور پر باریک کرنا
     final_pitch = base_pitch + 15 if is_kid else base_pitch
 
     for i, line in enumerate(lines):
@@ -58,14 +52,22 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
             pitch_str = f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"
             
             try:
+                # پہلی کوشش (آپ کی سیٹنگز کے ساتھ)
                 communicate = edge_tts.Communicate(clean_text, voice_choice, rate=rate_str, pitch=pitch_str)
                 await communicate.save(temp_file)
-                if os.path.exists(temp_file):
+                
+                # اگر پہلی کوشش ناکام ہو (فائل نہ بنے یا خالی ہو) تو دوسری کوشش (ڈیفالٹ سیٹنگز کے ساتھ)
+                if not os.path.exists(temp_file) or os.path.getsize(temp_file) == 0:
+                    communicate = edge_tts.Communicate(clean_text, voice_choice)
+                    await communicate.save(temp_file)
+
+                if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
                     segment = AudioSegment.from_mp3(temp_file)
                     combined_audio += segment
                     os.remove(temp_file)
-            except:
-                continue # اگر کسی لائن میں ایرر آئے تو اگلی پر جائے
+            except Exception as e:
+                print(f"Skipping line due to error: {e}")
+                continue 
 
         if pause_match:
             seconds = int(pause_match.group(1))
@@ -79,16 +81,12 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         return final_output
     return None
 
-# --- UI (آپ کا مخصوص ٹائٹل) ---
+# --- UI ---
 st.title("📜 Professional Urdu History Narrator")
 st.subheader("پروفیشنل اردو ہسٹری نیریٹر")
 
-st.write("Paste your script below. The app will remove instructions and add pauses automatically.")
-st.write("اپنا اسکرپٹ یہاں پیسٹ کریں۔ ایپ خود بخود ہدایات صاف کر کے وقفے شامل کر دے گی۔")
-
 user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 
-# Sidebar Settings
 st.sidebar.header("Settings / سیٹنگز")
 voice_map = {
     "Asad (Man/مرد)": "ur-PK-AsadNeural",
@@ -105,21 +103,20 @@ pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 20, -
 
 if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
-        cleanup_old_files() # پرانی فائلوں کی صفائی
-        with st.spinner("Processing... / آڈیو تیار ہو رہی ہے"):
+        cleanup_old_files()
+        with st.spinner("Processing Usman's Voice... / آواز تیار ہو رہی ہے"):
             try:
                 path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_voice_code, is_kid))
                 if path:
                     st.session_state.audio_path = path
                     st.success("Ready! / تیار ہے")
                 else:
-                    st.error("Error generating audio!")
+                    st.error("Error: Could not receive audio. Try changing Pitch or Speed slightly.")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
         st.error("Enter Script!")
 
-# فائنل آڈیو ڈسپلے جو ریفریش تک یہاں رہے گا
 if st.session_state.audio_path and os.path.exists(st.session_state.audio_path):
     st.markdown("---")
     st.audio(st.session_state.audio_path)
