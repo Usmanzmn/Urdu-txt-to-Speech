@@ -1,3 +1,10 @@
+try:
+    import audioop
+except ImportError:
+    import audioop_lts as audioop
+    import sys
+    sys.modules['audioop'] = audioop
+    
 import streamlit as st
 import asyncio
 import edge_tts
