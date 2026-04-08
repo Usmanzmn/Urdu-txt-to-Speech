@@ -4,7 +4,7 @@ except ImportError:
     import audioop_lts as audioop
     import sys
     sys.modules['audioop'] = audioop
-    
+    pip install audioop-lts
 import streamlit as st
 import asyncio
 import edge_tts
