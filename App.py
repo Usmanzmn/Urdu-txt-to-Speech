@@ -6,9 +6,9 @@ import re
 from pydub import AudioSegment
 
 # Page Configuration
-st.set_page_config(page_title="Urdu Voice Studio", page_icon="🎤")
+st.set_page_config(page_title="Urdu History Narrator", page_icon="📜")
 
-# Custom CSS
+# وہی پرانا ڈیزائن (CSS)
 st.markdown("""
     <style>
     .urdu-text { direction: rtl; text-align: right; font-family: 'Urdu Typesetting', 'Tahoma', sans-serif; }
@@ -16,10 +16,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Initialize Session State for audio
+# میموری (Session State) تاکہ ڈاؤن لوڈ بٹن سے آڈیو غائب نہ ہو
 if "audio_path" not in st.session_state:
     st.session_state.audio_path = None
 
+# آڈیو جنریشن کا فنکشن
 async def generate_history_audio(full_script, base_speed, base_pitch, voice_choice):
     lines = full_script.split('\n')
     combined_audio = AudioSegment.empty()
@@ -31,8 +32,7 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
     total_lines = len(lines)
 
     for i, line in enumerate(lines):
-        if not line.strip():
-            continue
+        if not line.strip(): continue
         
         pause_match = re.search(r"\[Pause:\s*(\d+)s\]", line)
         clean_text = re.sub(r"\(.*?\)", "", line)
@@ -48,8 +48,7 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
             
             segment = AudioSegment.from_mp3(temp_file)
             combined_audio += segment
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+            if os.path.exists(temp_file): os.remove(temp_file)
 
         if pause_match:
             seconds = int(pause_match.group(1))
@@ -61,45 +60,44 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
     combined_audio.export(final_output, format="mp3")
     return final_output
 
-# --- UI ---
-st.title("📜 Urdu Voice Studio with Memory")
+# --- UI (وہی پرانا ٹاپ ٹیکسٹ) ---
+st.title("📜 Professional Urdu History Narrator")
+st.subheader("پروفیشنل اردو ہسٹری نیریٹر")
 
-# Sidebar
-st.sidebar.header("Voice Settings")
+st.write("Paste your script below. The app will remove instructions and add pauses automatically.")
+st.write("اپنا اسکرپٹ یہاں پیسٹ کریں۔ ایپ خود بخود ہدایات صاف کر کے وقفے شامل کر دے گی۔")
+
+# ان پٹ باکس
+user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
+
+# سائیڈ بار
+st.sidebar.header("Settings / سیٹنگز")
 voice_map = {
     "Asad (Man/مرد)": "ur-PK-AsadNeural",
     "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural",
     "Child (Kid/بچہ)": "ur-IN-GulNeural"
 }
-selected_voice_label = st.sidebar.selectbox("Select Narrator", list(voice_map.keys()))
+selected_voice_label = st.sidebar.selectbox("Select Narrator / آواز منتخب کریں", list(voice_map.keys()))
 selected_voice_code = voice_map[selected_voice_label]
-speed = st.sidebar.slider("Speech Rate", 0.7, 1.3, 0.9, 0.1)
-pitch = st.sidebar.slider("Voice Pitch", -20, 10, -5, 1)
 
-# Input
-user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
+speed = st.sidebar.slider("Speech Rate / بولنے کی رفتار", 0.7, 1.3, 0.9, 0.1)
+pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 10, -8, 1)
 
-if st.button("Generate Voiceover"):
+# بٹن
+if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
-        with st.spinner("Processing..."):
+        with st.spinner("Processing... / آڈیو تیار ہو رہی ہے"):
             try:
-                # Save path to session state
                 st.session_state.audio_path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_voice_code))
-                st.success("Generated Successfully!")
+                st.success("Ready! / تیار ہے")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
-        st.error("Please enter a script!")
+        st.error("Enter Script!")
 
-# Check if audio exists in memory and display it
+# آڈیو پلیئر اور ڈاؤن لوڈ بٹن (جو اب غائب نہیں ہوگا)
 if st.session_state.audio_path and os.path.exists(st.session_state.audio_path):
     st.markdown("---")
     st.audio(st.session_state.audio_path)
-    
     with open(st.session_state.audio_path, "rb") as f:
-        st.download_button(
-            label="Download MP3",
-            data=f,
-            file_name="Urdu_Narrator.mp3",
-            mime="audio/mp3"
-        )
+        st.download_button("Download MP3 / ڈاؤن لوڈ کریں", f, file_name="Urdu_Narrator.mp3")
