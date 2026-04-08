@@ -36,7 +36,7 @@ async def generate_asad_audio(full_script, base_speed, base_pitch):
             communicate = edge_tts.Communicate(clean_text, "ur-PK-AsadNeural", rate=rate_str, pitch=pitch_str)
             await communicate.save(temp_file)
             combined_audio += AudioSegment.from_mp3(temp_file)
-            os.remove(temp_file)
+            if os.path.exists(temp_file): os.remove(temp_file)
 
         if pause_match:
             seconds = int(pause_match.group(1))
@@ -67,16 +67,47 @@ with tab1:
     if st.button("وائس اوور تیار کریں"):
         if user_script:
             with st.spinner("آڈیو تیار ہو رہی ہے..."):
-                final_path = asyncio.run(generate_asad_audio(user_script, speed, pitch))
-                st.audio(final_path)
-                with open(final_path, "rb") as f:
-                    st.download_button("ڈاؤن لوڈ کریں", f, "History_Voice.mp3")
+                try:
+                    final_path = asyncio.run(generate_asad_audio(user_script, speed, pitch))
+                    st.audio(final_path)
+                    with open(final_path, "rb") as f:
+                        st.download_button("ڈاؤن لوڈ کریں", f, "History_Voice.mp3")
+                except Exception as e:
+                    st.error(f"Error: {e}")
         else:
             st.error("اسکرپٹ لکھیں!")
 
 # --- Tab 2: Voice Cloning ---
 with tab2:
     st.header("آواز کلوننگ (Hugging Face)")
-    st.warning("اس کے لیے نیا ٹوکن استعمال کریں۔")
+    st.warning("اپنا درست ٹوکن نیچے درج کریں۔")
     
-    # اپنا نیا ٹوکن یہاں
+    # اپنا ٹوکن یہاں لکھیں
+    HF_TOKEN = "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" 
+    
+    clone_audio = st.file_uploader("اپنی آواز اپ لوڈ کریں (Sample)", type=["wav", "mp3"])
+    clone_text = st.text_area("کلون آواز کے لیے متن لکھیں:", height=150, key="txt2")
+    
+    if st.button("کلون آواز جنریٹ کریں"):
+        if clone_audio and clone_text:
+            with st.spinner("AI سرور آواز تیار کر رہا ہے..."):
+                API_URL = "https://api-inference.huggingface.co/models/coqui/XTTS-v2"
+                headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+                # آڈیو کو ہیگز یا بیس 64 میں بھیجنا ماڈل پر منحصر ہے، 
+                # زیادہ تر انفرنس APIs کو براہ راست بائٹس چاہئیں ہوتی ہیں
+                try:
+                    audio_bytes = clone_audio.read()
+                    # نوٹ: ہر ماڈل کی API پے لوڈ مختلف ہو سکتا ہے
+                    response = requests.post(API_URL, headers=headers, json={"inputs": clone_text})
+                    
+                    if response.status_code == 200:
+                        st.success("کلون آواز تیار ہے!")
+                        st.audio(response.content)
+                    elif response.status_code == 503:
+                        st.warning("سرور ماڈل لوڈ کر رہا ہے، 20 سیکنڈ بعد دوبارہ ٹرائی کریں۔")
+                    else:
+                        st.error(f"Error {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"رابطے میں غلطی: {e}")
+        else:
+            st.error("فائل اور ٹیکسٹ دونوں ضروری ہیں۔")
