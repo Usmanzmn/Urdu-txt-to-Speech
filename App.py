@@ -4,10 +4,9 @@ import edge_tts
 import os
 import re
 import glob
-import random
 from pydub import AudioSegment
 
-# Page Configuration
+# 1. Page Configuration
 st.set_page_config(page_title="Professional Urdu History Narrator", page_icon="📜")
 
 def cleanup_old_files():
@@ -48,39 +47,20 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
         clean_text = re.sub(r"\[.*?\]", "", clean_text).strip()
         
         if clean_text:
-            temp_file = f"temp/part_{random.randint(1, 999)}_{i}.mp3"
+            temp_file = f"temp/part_{i}.mp3"
+            rate_str = f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%"
+            pitch_str = f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"
             
-            # کوشش 1: آپ کی سیٹنگز
-            # کوشش 2: صرف آواز (بغیر کسی پچ یا اسپیڈ کے - سب سے محفوظ طریقہ)
-            success = False
-            
-            # Attempt 1: With User Settings
             try:
-                rate_str = f"{'+' if base_speed >= 1 else ''}{int((base_speed-1)*100)}%"
-                pitch_str = f"{'+' if final_pitch >= 0 else ''}{final_pitch}Hz"
                 communicate = edge_tts.Communicate(clean_text, voice_choice, rate=rate_str, pitch=pitch_str)
                 await communicate.save(temp_file)
-                if os.path.exists(temp_file) and os.path.getsize(temp_file) > 200:
-                    success = True
+                
+                if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
+                    segment = AudioSegment.from_mp3(temp_file)
+                    combined_audio += segment
+                    os.remove(temp_file)
             except:
-                success = False
-
-            # Attempt 2: Emergency Mode (Raw Voice)
-            if not success:
-                try:
-                    communicate = edge_tts.Communicate(clean_text, voice_choice)
-                    await communicate.save(temp_file)
-                    if os.path.exists(temp_file) and os.path.getsize(temp_file) > 200:
-                        success = True
-                except:
-                    success = False
-
-            if success:
-                segment = AudioSegment.from_mp3(temp_file)
-                combined_audio += segment
-                if os.path.exists(temp_file): os.remove(temp_file)
-            else:
-                st.error(f"لائن {i+1} پر سرور جواب نہیں دے رہا۔")
+                continue 
 
         if pause_match:
             seconds = int(pause_match.group(1))
@@ -98,12 +78,16 @@ async def generate_history_audio(full_script, base_speed, base_pitch, voice_choi
 st.title("📜 Professional Urdu History Narrator")
 st.subheader("پروفیشنل اردو ہسٹری نیریٹر")
 
+st.write("Paste your script below. The app will remove instructions and add pauses automatically.")
+st.write("اپنا اسکرپٹ یہاں پیسٹ کریں۔ ایپ خود بخود ہدایات صاف کر کے وقفے شامل کر دے گی۔")
+
 user_input = st.text_area("Urdu Script / اردو اسکرپٹ:", height=300)
 
+# Sidebar
 st.sidebar.header("Settings / سیٹنگز")
 voice_map = {
     "Asad (Man/مرد)": "ur-PK-AsadNeural",
-    "Usman (Deep/جاندار)": "ur-PK-ImranNeural", 
+    "Salman (Narrator/نیریٹر)": "ur-IN-GulNeural", # نئی آواز جو زیادہ مستحکم ہے
     "Uzma (Woman/خاتون)": "ur-PK-UzmaNeural",
     "Child (Kid/بچہ)": "ur-PK-UzmaNeural"
 }
@@ -117,14 +101,14 @@ pitch = st.sidebar.slider("Voice Pitch / آواز کی گہرائی", -20, 20, -
 if st.button("Generate Voiceover / وائس اوور تیار کریں"):
     if user_input.strip():
         cleanup_old_files()
-        with st.spinner("Processing..."):
+        with st.spinner("Processing Salman's Voice..."):
             try:
                 path = asyncio.run(generate_history_audio(user_input, speed, pitch, selected_code, is_kid))
                 if path:
                     st.session_state.audio_path = path
                     st.success("Ready! / تیار ہے")
                 else:
-                    st.error("Error: All server attempts failed.")
+                    st.error("Error generating audio. Try shorter text.")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
