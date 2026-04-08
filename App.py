@@ -4,7 +4,7 @@ import time
 
 # --- سیٹنگز ---
 # اپنا ٹوکن یہاں لکھیں
-HF_TOKEN = "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"
+HF_TOKEN = "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"
 API_URL = "https://api-inference.huggingface.co/models/coqui/XTTS-v2"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
